@@ -1,22 +1,19 @@
 
 import React, { useEffect, useState } from 'react'
-import { useTelegram } from '@vkruglikov/react-telegram-web-app'
+import { useWebApp } from '@vkruglikov/react-telegram-web-app'
 import useStore from '../store/useStore'
 
 function Auth() {
-  const { initDataUnsafe, initData, ready } = useTelegram()
+  const WebApp = useWebApp()
   const { login, isLoading } = useStore()
   const [error, setError] = useState(null)
   const [localLoading, setLocalLoading] = useState(true)
 
   useEffect(() => {
-    if (!ready) return
-
     const authenticateUser = async () => {
       try {
-        // التحقق من وجود بيانات Telegram
-        if (!initData) {
-          // محاولة تسجيل الدخول بدون Telegram (للتطوير فقط)
+        // التحقق من وجود Telegram
+        if (!WebApp?.initData) {
           if (import.meta.env.DEV) {
             console.log('وضع التطوير: بدون Telegram')
             setLocalLoading(false)
@@ -25,19 +22,22 @@ function Auth() {
           throw new Error('يرجى فتح التطبيق من Telegram')
         }
 
-        console.log('📱 بيانات Telegram موجودة، جاري المصادقة...')
+        // توسيع الشاشة
+        WebApp.expand()
+        WebApp.ready()
+
+        console.log('📱 جاري المصادقة...')
         
-        // محاولة تسجيل الدخول
-        const result = await login(initData)
+        const result = await login(WebApp.initData)
         
         if (!result.success) {
           throw new Error(result.error || 'فشل تسجيل الدخول')
         }
 
-        console.log('✅ تسجيل الدخول ناجح:', result.user)
+        console.log('✅ نجح:', result.user)
 
       } catch (err) {
-        console.error('❌ خطأ في المصادقة:', err)
+        console.error('❌ خطأ:', err)
         setError(err.message)
       } finally {
         setLocalLoading(false)
@@ -45,7 +45,7 @@ function Auth() {
     }
 
     authenticateUser()
-  }, [ready, initData, login])
+  }, [WebApp, login])
 
   if (localLoading || isLoading) {
     return (
@@ -67,7 +67,6 @@ function Auth() {
             <p className="text-gray-400 text-sm mb-2">وضع المطور:</p>
             <button 
               onClick={() => {
-                // تسجيل دخول وهمي للتطوير
                 useStore.setState({
                   user: {
                     id: 'dev-user-123',
@@ -99,7 +98,6 @@ function Auth() {
     )
   }
 
-  // لا شيء يُعرض هنا، App.jsx يتولى عرض المحتوى
   return null
 }
 
