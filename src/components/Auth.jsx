@@ -1,76 +1,97 @@
 
 import React, { useEffect, useState } from 'react'
 import { useTelegram } from '@vkruglikov/react-telegram-web-app'
-import { supabase } from '../config/supabase'
+import useStore from '../store/useStore'
 
 function Auth() {
   const { initDataUnsafe, initData, ready } = useTelegram()
-  const [loading, setLoading] = useState(true)
+  const { login, isLoading } = useStore()
   const [error, setError] = useState(null)
-  const [user, setUser] = useState(null)
+  const [localLoading, setLocalLoading] = useState(true)
 
   useEffect(() => {
     if (!ready) return
 
     const authenticateUser = async () => {
       try {
+        // التحقق من وجود بيانات Telegram
         if (!initData) {
-          throw new Error('لا يوجد بيانات Telegram')
+          // محاولة تسجيل الدخول بدون Telegram (للتطوير فقط)
+          if (import.meta.env.DEV) {
+            console.log('وضع التطوير: بدون Telegram')
+            setLocalLoading(false)
+            return
+          }
+          throw new Error('يرجى فتح التطبيق من Telegram')
         }
 
-        // إرسال initData للتحقق
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Telegram-Init-Data': initData
-          },
-          body: JSON.stringify({ initData })
-        })
-
-        if (!response.ok) {
-          throw new Error('فشل التحقق من الهوية')
-        }
-
-        const data = await response.json()
+        console.log('📱 بيانات Telegram موجودة، جاري المصادقة...')
         
-        if (data.success) {
-          setUser(data.user)
-          // حفظ الجلسة في Supabase
-          await supabase.auth.setSession({
-            access_token: data.token,
-            refresh_token: data.refreshToken
-          })
-        } else {
-          throw new Error(data.message || 'فشل تسجيل الدخول')
+        // محاولة تسجيل الدخول
+        const result = await login(initData)
+        
+        if (!result.success) {
+          throw new Error(result.error || 'فشل تسجيل الدخول')
         }
+
+        console.log('✅ تسجيل الدخول ناجح:', result.user)
 
       } catch (err) {
-        console.error('خطأ في المصادقة:', err)
+        console.error('❌ خطأ في المصادقة:', err)
         setError(err.message)
       } finally {
-        setLoading(false)
+        setLocalLoading(false)
       }
     }
 
     authenticateUser()
-  }, [ready, initData])
+  }, [ready, initData, login])
 
-  if (loading) {
+  if (localLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+        <p className="text-gray-400">جاري تسجيل الدخول...</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <div className="text-red-500 text-center mb-4">{error}</div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
+        <div className="text-red-500 text-center mb-4 text-lg">⚠️</div>
+        <p className="text-red-400 text-center mb-6">{error}</p>
+        
+        {import.meta.env.DEV && (
+          <div className="bg-gray-900 rounded-xl p-4 mb-4 max-w-sm">
+            <p className="text-gray-400 text-sm mb-2">وضع المطور:</p>
+            <button 
+              onClick={() => {
+                // تسجيل دخول وهمي للتطوير
+                useStore.setState({
+                  user: {
+                    id: 'dev-user-123',
+                    telegram_id: 123456789,
+                    first_name: 'مطور',
+                    username: 'developer',
+                    balance: 1000,
+                    referral_code: 'SYT123',
+                    referral_count: 5
+                  },
+                  isAuthenticated: true,
+                  isLoading: false
+                })
+              }}
+              className="bg-blue-500 text-white px-6 py-2 rounded-lg w-full"
+            >
+              تسجيل دخول وهمي
+            </button>
+          </div>
+        )}
+        
         <button 
           onClick={() => window.location.reload()}
-          className="bg-blue-500 text-white px-6 py-2 rounded-lg"
+          className="bg-gray-800 text-white px-6 py-2 rounded-lg"
         >
           إعادة المحاولة
         </button>
@@ -78,51 +99,8 @@ function Auth() {
     )
   }
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-400">جاري التحميل...</div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="p-4">
-      <div className="bg-gray-900 rounded-xl p-6 mb-4">
-        <div className="flex items-center gap-4">
-          {user.photo_url && (
-            <img 
-              src={user.photo_url} 
-              alt={user.first_name}
-              className="w-16 h-16 rounded-full"
-            />
-          )}
-          <div>
-            <h2 className="text-xl font-bold">{user.first_name} {user.last_name}</h2>
-            <p className="text-gray-400">@{user.username}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gray-900 rounded-xl p-6 mb-4">
-        <h3 className="text-gray-400 text-sm mb-2">الرصيد</h3>
-        <p className="text-3xl font-bold text-green-400">{user.balance} SYT</p>
-      </div>
-
-      <div className="bg-gray-900 rounded-xl p-6">
-        <h3 className="text-gray-400 text-sm mb-2">كود الإحالة</h3>
-        <div className="flex items-center justify-between bg-gray-800 rounded-lg p-3">
-          <code className="text-blue-400">{user.referral_code}</code>
-          <button className="text-sm text-white bg-blue-500 px-3 py-1 rounded">
-            نسخ
-          </button>
-        </div>
-        <p className="text-gray-500 text-xs mt-2">
-          عدد الإحالات: {user.referral_count}
-        </p>
-      </div>
-    </div>
-  )
+  // لا شيء يُعرض هنا، App.jsx يتولى عرض المحتوى
+  return null
 }
 
 export default Auth
