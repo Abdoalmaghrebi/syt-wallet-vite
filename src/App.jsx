@@ -1,6 +1,6 @@
-// src/App.jsx
+
 import React, { useEffect, useState } from 'react'
-import { useTelegram } from '@vkruglikov/react-telegram-web-app'
+import { useWebApp } from '@vkruglikov/react-telegram-web-app'
 import useStore from './store/useStore'
 import Auth from './components/Auth'
 import Navigation from './components/Navigation'
@@ -10,18 +10,18 @@ import Wallet from './components/Wallet'
 import Referrals from './components/Referrals'
 
 function App() {
-  const { ready, expand } = useTelegram()
+  const WebApp = useWebApp()
   const [activeTab, setActiveTab] = useState('home')
   const { user, isAuthenticated, isLoading, setLoading } = useStore()
 
   useEffect(() => {
-    if (ready) {
-      expand()
+    if (WebApp) {
+      WebApp.expand()
+      WebApp.ready()
     }
-  }, [ready, expand])
+  }, [WebApp])
 
   useEffect(() => {
-    // التحقق من وجود مستخدم مخزن
     const checkAuth = async () => {
       const storedUser = localStorage.getItem('syt-wallet-storage')
       if (storedUser) {
@@ -34,7 +34,7 @@ function App() {
             })
           }
         } catch (e) {
-          console.error('خطأ في قراءة التخزين:', e)
+          console.error('خطأ في التخزين:', e)
         }
       }
       setLoading(false)
