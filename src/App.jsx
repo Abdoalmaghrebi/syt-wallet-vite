@@ -12,10 +12,30 @@ import Referrals from './components/Referrals'
 function App() {
   const WebApp = useWebApp()
   const [activeTab, setActiveTab] = useState('home')
+  const [telegramReady, setTelegramReady] = useState(false)
   const { user, isAuthenticated, isLoading, setLoading } = useStore()
 
+  // ✅ التحقق من Telegram
   useEffect(() => {
-    if (WebApp) {
+    // انتظار تحميل Telegram
+    const checkTelegram = setInterval(() => {
+      if (window.Telegram?.WebApp || WebApp) {
+        setTelegramReady(true)
+        clearInterval(checkTelegram)
+      }
+    }, 100)
+
+    // timeout بعد 5 ثواني
+    setTimeout(() => {
+      clearInterval(checkTelegram)
+      setTelegramReady(true) // استمر بدون Telegram
+    }, 5000)
+
+    return () => clearInterval(checkTelegram)
+  }, [WebApp])
+
+  useEffect(() => {
+    if (WebApp?.expand) {
       WebApp.expand()
       WebApp.ready()
     }
@@ -42,6 +62,18 @@ function App() {
     
     checkAuth()
   }, [setLoading])
+
+  // ✅ عرض رسالة انتظار
+  if (!telegramReady) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p>جاري التحميل...</p>
+        </div>
+      </div>
+    )
+  }
 
   const renderContent = () => {
     if (!isAuthenticated || !user) {
